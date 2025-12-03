@@ -723,7 +723,7 @@ struct ContentView: View {
         switch status {
         case .denied, .restricted: return "Settings"
         case .authorized: return "Continue"
-        case .notDetermined: return "Allow"
+        case .notDetermined: return "Next"
         @unknown default: return "Allow"
         }
     }
