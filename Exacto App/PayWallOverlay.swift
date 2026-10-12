@@ -6,9 +6,10 @@ enum PlanType {
 }
 
 struct PayWall: View {
+    @Environment(\.windowMetrics) private var windowMetrics
     @EnvironmentObject var iap: IAPManager
 
-    @State private var currentTab = 0
+    @State private var weeklyTrialEligible = false
 
     @State private var selectedPlan: PlanType = .weekly
     @State private var isTrialEnabled: Bool = true
@@ -36,8 +37,9 @@ struct PayWall: View {
                             .resizable()
                             .scaledToFit()
                             .frame(width: 32, height: 32)
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                     }
+                    .accessibilityLabel("Close paywall")
 
                     Spacer()
                 }
@@ -52,12 +54,9 @@ struct PayWall: View {
 
                         Text("Get Unlimited Access")
                             .font(
-                                .custom(
-                                    "SFProDisplay-Heavy",
-                                    size: Device.isSmall ? 22 : 28
-                                )
+                                .system(size: windowMetrics.isSmall ? 22 : 28, weight: .heavy)
                             )
-                            .foregroundColor(Color("MainColor"))
+                            .foregroundStyle(Color("MainColor"))
                             .multilineTextAlignment(.center)
                             .dynamicTypeSize(.medium ... .xxLarge)
                             .frame(maxWidth: .infinity)
@@ -78,7 +77,7 @@ struct PayWall: View {
                                 icon: "app_ic_paywall04",
 
                                 line1: Text("Create a full"),
-                                line2: Text("Room Plan").foregroundColor(
+                                line2: Text("Room Plan").foregroundStyle(
                                     Color("MainColor")
                                 )
                             )
@@ -86,17 +85,14 @@ struct PayWall: View {
                             FeatureTile(
                                 icon: "app_ic_paywall01",
 
-                                line1: Text("Take ")
-                                    + Text("unlimited").foregroundColor(
-                                        Color("MainColor")
-                                    ),
+                                line1: Text("Take \(Text("unlimited").foregroundStyle(Color("MainColor")))"),
                                 line2: Text("measurements")
                             )
 
                             FeatureTile(
                                 icon: "app_ic_paywall03",
 
-                                line1: Text("Auto-calculate").foregroundColor(
+                                line1: Text("Auto-calculate").foregroundStyle(
                                     Color("MainColor")
                                 ),
                                 line2: Text("perimeter")
@@ -105,7 +101,7 @@ struct PayWall: View {
                             FeatureTile(
                                 icon: "app_ic_paywall02",
 
-                                line1: Text("Measure").foregroundColor(
+                                line1: Text("Measure").foregroundStyle(
                                     Color("MainColor")
                                 ),
                                 line2: Text("the level")
@@ -113,44 +109,47 @@ struct PayWall: View {
                         }
                         .padding(.bottom)
 
-                        HStack {
-                            Text("Free Trial Enabled")
-                                .foregroundColor(
-                                    selectedPlan == .weekly
-                                        ? .white : Color.init(hex: "7E7E7E")
-                                )
-                                .font(.custom("SFProDisplay-Medium", size: 15))
-                                .dynamicTypeSize(.medium ... .xxLarge)
+                        if weeklyFreeTrialOffer != nil {
+                            HStack {
+                                Text("Free Trial Enabled")
+                                    .foregroundStyle(
+                                        selectedPlan == .weekly
+                                            ? .white : Color.init(hex: "7E7E7E")
+                                    )
+                                    .font(.system(size: 15, weight: .medium))
+                                    .dynamicTypeSize(.medium ... .xxLarge)
 
-                            Spacer()
+                                Spacer()
 
-                            Toggle("", isOn: $isTrialEnabled)
-                                .labelsHidden()
-                                .tint(Color(hex: "#419400"))
-                                .onChange(of: isTrialEnabled) { newValue in
-                                    if newValue {
-                                        selectedPlan = .weekly
-                                    } else {
-                                        selectedPlan = .yearly
+                                Toggle("", isOn: $isTrialEnabled)
+                                    .labelsHidden()
+                                    .tint(Color(hex: "#419400"))
+                                    .onChange(of: isTrialEnabled) { _, newValue in
+                                        if newValue {
+                                            selectedPlan = .weekly
+                                        } else {
+                                            selectedPlan = .yearly
+                                        }
                                     }
-                                }
-                        }
-                        .padding(.horizontal, 30)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [
-                                            Color(hex: "#000000"),
-                                            Color(hex: "#000000"),
-                                        ]),
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    ).opacity(0.5)
-                                )
+                            }
+                            .padding(.horizontal, 30)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                Color(hex: "#000000"),
+                                                Color(hex: "#000000"),
+                                            ]),
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        ).opacity(0.5)
+                                    )
 
-                        )
+                            )
+
+                        }
 
                         PlanCard(
                             title: "Yearly Access",
@@ -208,25 +207,13 @@ struct PayWall: View {
                             }
 
                             do {
-                                let result = try await product.purchase()
-                                switch result {
-                                case .success(let verification):
-                                    switch verification {
-                                    case .verified(let tx):
-                                        await tx.finish()
-                                        await iap.refreshEntitlements()
-                                        dismiss()
-                                    case .unverified(_, let error):
-                                        purchaseMessage =
-                                            "Purchase couldn’t be verified: \(error.localizedDescription)"
-                                    }
-                                case .userCancelled:
+                                switch try await iap.purchase(product: product) {
+                                case .purchased:
+                                    if iap.isSubscribed { dismiss() }
+                                case .cancelled:
                                     break
                                 case .pending:
-                                    purchaseMessage =
-                                        "Your purchase is pending approval."
-                                @unknown default:
-                                    break
+                                    purchaseMessage = "Your purchase is pending approval."
                                 }
                             } catch {
                                 purchaseMessage = error.localizedDescription
@@ -236,15 +223,15 @@ struct PayWall: View {
                         HStack {
                             Spacer()
                             Text("Continue")
-                                .foregroundColor(.white)
-                                .font(.custom("SFProDisplay-Bold", size: 16))
+                                .foregroundStyle(.white)
+                                .font(.system(size: 16, weight: .bold))
                             Spacer()
                             Image(systemName: "chevron.right")
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                         }
                         .padding()
                         .background(Color("MainColor"))
-                        .cornerRadius(10)
+                        .clipShape(.rect(cornerRadius: 10))
                     }
                     .disabled(purchasing || !AppStore.canMakePayments)
                     .frame(height: 55)
@@ -260,11 +247,11 @@ struct PayWall: View {
                                 .frame(width: 22, height: 22)
 
                             Text(
-                                isTrialEnabled
+                                includesFreeTrial
                                     ? "No Payment Now" : "Cancel Anytime"
                             )
-                            .font(.custom("SFProDisplay-Bold", size: 13))
-                            .foregroundColor(Color(hex: "ffffff"))
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Color(hex: "ffffff"))
                         }
 
                         HStack(spacing: 40) {
@@ -273,28 +260,32 @@ struct PayWall: View {
                             }) {
                                 Text("Privacy Policy")
                                     .font(
-                                        .custom(
-                                            "SFProDisplay-Regular",
-                                            size: 14
-                                        )
+                                        .system(size: 14, weight: .regular)
                                     )
-                                    .foregroundColor(Color(hex: "#BDBDBD"))
+                                    .foregroundStyle(Color(hex: "#BDBDBD"))
                             }
 
                             Button(action: {
+                                guard !purchasing else { return }
+                                purchasing = true
                                 Task {
-                                    await iap.restore()
-
+                                    defer { purchasing = false }
+                                    do {
+                                        if try await iap.restore() {
+                                            dismiss()
+                                        } else {
+                                            purchaseMessage = "No active subscription was found."
+                                        }
+                                    } catch {
+                                        purchaseMessage = error.localizedDescription
+                                    }
                                 }
                             }) {
                                 Text("Restore")
                                     .font(
-                                        .custom(
-                                            "SFProDisplay-Regular",
-                                            size: 14
-                                        )
+                                        .system(size: 14, weight: .regular)
                                     )
-                                    .foregroundColor(Color(hex: "#BDBDBD"))
+                                    .foregroundStyle(Color(hex: "#BDBDBD"))
                             }
 
                             Button(action: {
@@ -302,12 +293,9 @@ struct PayWall: View {
                             }) {
                                 Text("Terms of Use")
                                     .font(
-                                        .custom(
-                                            "SFProDisplay-Regular",
-                                            size: 14
-                                        )
+                                        .system(size: 14, weight: .regular)
                                     )
-                                    .foregroundColor(Color(hex: "#BDBDBD"))
+                                    .foregroundStyle(Color(hex: "#BDBDBD"))
                             }
                         }
                     }
@@ -324,12 +312,14 @@ struct PayWall: View {
                 }
             }
 
-        }.task {
-            if iap.products.isEmpty {
-                await iap.fetchProducts()
-            }
+        }.task(id: iap.products.map(\.id)) {
+            if iap.products.isEmpty { await iap.fetchProducts() }
+            weeklyTrialEligible = await weeklyProduct()?.subscription?.isEligibleForIntroOffer ?? false
         }
 
+        .onChange(of: iap.isSubscribed) { _, subscribed in
+            if subscribed { dismiss() }
+        }
         .alert(
             "Purchase",
             isPresented: Binding(
@@ -354,61 +344,44 @@ struct PayWall: View {
         iap.products.first { $0.id == Constants.yearly }
     }
 
+    private var weeklyFreeTrialOffer: Product.SubscriptionOffer? {
+        guard weeklyTrialEligible,
+              let offer = weeklyProduct()?.subscription?.introductoryOffer,
+              offer.paymentMode == .freeTrial else { return nil }
+        return offer
+    }
+
+    private var includesFreeTrial: Bool {
+        selectedPlan == .weekly && weeklyFreeTrialOffer != nil
+    }
+
     private func weeklyTitle() -> String {
-        if let offer = weeklyProduct()?.subscription?.introductoryOffer,
-            offer.type == .introductory, offer.price == 0
-        {
-            return "3–Days Free Trial"
+        guard let offer = weeklyFreeTrialOffer else { return "Weekly Access" }
+        let unit: String
+        switch offer.period.unit {
+        case .day: unit = "Day"
+        case .week: unit = "Week"
+        case .month: unit = "Month"
+        case .year: unit = "Year"
+        @unknown default: return "Free Trial"
         }
-        return "Weekly Access"
+        return "\(offer.period.value)-\(unit) Free Trial"
     }
 
     private func weeklySubtitle() -> String {
-        guard let product = weeklyProduct() else { return "$9.99 / week" }
-        if let offer = product.subscription?.introductoryOffer,
-            offer.type == .introductory, offer.price == 0
-        {
-            return "then \(product.displayPrice) / week"
-        }
-        return "\(product.displayPrice) / week"
+        guard let product = weeklyProduct() else { return "Loading price…" }
+        let prefix = weeklyFreeTrialOffer == nil ? "" : "then "
+        return "\(prefix)\(product.displayPrice) / week"
     }
 
     private func weeklyBadge() -> String {
-        if let offer = weeklyProduct()?.subscription?.introductoryOffer,
-            offer.type == .introductory, offer.price == 0
-        {
-            return introBadge(from: offer.period) ?? "FREE TRIAL"
-        }
-        return "POPULAR"
+        guard let offer = weeklyFreeTrialOffer else { return "POPULAR" }
+        return introBadge(from: offer.period) ?? "FREE TRIAL"
     }
 
     private func yearlySubtitle() -> String {
-        guard let product = yearlyProduct() else { return "$44.99 / year" }
+        guard let product = yearlyProduct() else { return "Loading price…" }
         return "\(product.displayPrice) / year"
-    }
-
-    private func continueButtonTitle() -> String {
-        guard
-            let product =
-                (selectedPlan == .weekly ? weeklyProduct() : yearlyProduct())
-        else { return "Continue" }
-        if let offer = product.subscription?.introductoryOffer,
-            offer.type == .introductory, offer.price == 0
-        {
-            return "Continue"
-        }
-        return "Continue – \(product.displayPrice)"
-    }
-
-    private func bottomHint() -> String {
-        if let product =
-            (selectedPlan == .weekly ? weeklyProduct() : yearlyProduct()),
-            let offer = product.subscription?.introductoryOffer,
-            offer.type == .introductory, offer.price == 0
-        {
-            return "No Payment Now"
-        }
-        return "Cancel Anytime"
     }
 
     private func introBadge(from period: Product.SubscriptionPeriod) -> String?
@@ -437,12 +410,12 @@ struct PlanCard: View {
             HStack {
                 VStack(alignment: .leading) {
                     Text(title)
-                        .font(.custom("SFProDisplay-Medium", size: 15))
-                        .foregroundColor(.white)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.white)
 
                     Text(subtitle)
-                        .font(.custom("SFProDisplay-Regular", size: 12))
-                        .foregroundColor(.white)
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundStyle(.white)
                 }
 
                 Spacer()
@@ -450,7 +423,7 @@ struct PlanCard: View {
                 if planType == .yearly {
 
                     Text(badgeText)
-                        .font(.custom("SFProDisplay-Medium", size: 11))
+                        .font(.system(size: 11, weight: .medium))
                         .fontWeight(.bold)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
@@ -467,7 +440,7 @@ struct PlanCard: View {
                                     )
                                 )
                         )
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                         .padding(.trailing, 10)
 
                 }
@@ -485,7 +458,7 @@ struct PlanCard: View {
                             .fill(Color("MainColor"))
                             .frame(width: 20, height: 20)
                         Image(systemName: "checkmark")
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                             .font(
                                 .system(size: 12, weight: .bold)
                             )
@@ -525,6 +498,7 @@ struct PlanCard: View {
 }
 
 struct FeatureTile<Line1: View, Line2: View>: View {
+    @Environment(\.windowMetrics) private var windowMetrics
     let icon: String
 
     let line1: Line1
@@ -536,37 +510,26 @@ struct FeatureTile<Line1: View, Line2: View>: View {
                 .resizable()
                 .scaledToFit()
                 .frame(
-                    width: Device.isSmall ? 34 : 44,
-                    height: Device.isSmall ? 34 : 44
+                    width: windowMetrics.isSmall ? 34 : 44,
+                    height: windowMetrics.isSmall ? 34 : 44
                 )
 
             VStack(alignment: .leading, spacing: 4) {
                 line1
                     .font(
-                        .custom(
-                            "SFProDisplay-Regular",
-                            size: Device.isSmall ? 13 : 16
-                        )
+                        .system(size: windowMetrics.isSmall ? 13 : 16, weight: .regular)
                     )
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .fixedSize(horizontal: false, vertical: true)
 
                 line2
                     .font(
-                        .custom(
-                            "SFProDisplay-Regular",
-                            size: Device.isSmall ? 13 : 16
-                        )
+                        .system(size: windowMetrics.isSmall ? 13 : 16, weight: .regular)
                     )
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
-}
-
-#Preview {
-    PayWall()
-        .environmentObject(IAPManager.shared)
 }

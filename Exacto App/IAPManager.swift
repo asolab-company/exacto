@@ -1,109 +1,172 @@
+import Combine
 import Foundation
 import StoreKit
 
 @MainActor
-final class IAPManager: NSObject, ObservableObject {
+final class IAPManager: ObservableObject {
     static let shared = IAPManager()
 
-    @Published var products: [Product] = []
-    @Published var purchasedProductIDs: Set<String> = []
-    @Published var isSubscribed: Bool = false
-    @Published var isLoadingProducts: Bool = false
+    enum PurchaseOutcome: Equatable {
+        case purchased, cancelled, pending
+    }
+
+    enum PurchaseError: LocalizedError {
+        case productUnavailable, paymentsNotAllowed
+
+        var errorDescription: String? {
+            switch self {
+            case .productUnavailable:
+                return "Products are not loaded yet. Please try again."
+            case .paymentsNotAllowed:
+                return "In-App Purchases are disabled on this device."
+            }
+        }
+    }
+
+    @Published private(set) var products: [Product] = []
+    @Published private(set) var purchasedProductIDs: Set<String> = []
+    @Published private(set) var isSubscribed = false
+    @Published private(set) var hasLoadedEntitlements = false
+    @Published private(set) var isLoadingProducts = false
 
     private let productIDs: Set<String> = [Constants.weekly, Constants.yearly]
+    private var transactionUpdatesTask: Task<Void, Never>?
+    private var expirationTask: Task<Void, Never>?
+    private var refreshGeneration = 0
 
-    private override init() {
-        super.init()
+    init() {
+        observeTransactionUpdates()
         Task {
-            observeTransactionUpdates()
-            await fetchProducts()
             await refreshEntitlements()
         }
+        Task { await fetchProducts() }
+    }
+
+    deinit {
+        transactionUpdatesTask?.cancel()
+        expirationTask?.cancel()
     }
 
     func fetchProducts() async {
+        guard !isLoadingProducts else { return }
         isLoadingProducts = true
         defer { isLoadingProducts = false }
         do {
-            let loaded = try await Product.products(for: Array(productIDs))
-            products = loaded.sorted { $0.price < $1.price }
-        } catch {
-            print("❌ fetchProducts:", error)
-        }
+            products = try await Product.products(for: productIDs)
+                .sorted { $0.price < $1.price }
+        } catch {}
     }
 
-    func purchase(id: String) async {
-        guard let product = products.first(where: { $0.id == id }) else {
-            return
+    func purchase(product: Product) async throws -> PurchaseOutcome {
+        guard productIDs.contains(product.id) else {
+            throw PurchaseError.productUnavailable
         }
-        await purchase(product: product)
-    }
-
-    func purchase(product: Product) async {
-        do {
-            let result = try await product.purchase()
-            switch result {
-            case .success(let verification):
-                switch verification {
-                case .verified(let tx):
-                    await tx.finish()
-                    await refreshEntitlements()
-                case .unverified(_, let error):
-                    print("⚠️ Unverified transaction:", error)
-                }
-            case .userCancelled:
-                break
-            case .pending:
-                print("⏳ Pending (Ask to Buy)")
-            @unknown default:
-                break
-            }
-        } catch {
-            print("❌ purchase:", error)
+        guard AppStore.canMakePayments else {
+            throw PurchaseError.paymentsNotAllowed
         }
-    }
-
-    func restore() async {
-        do {
-            try await AppStore.sync()
+        switch try await product.purchase() {
+        case .success(.verified(let transaction)):
             await refreshEntitlements()
-        } catch {
-            print("❌ restore:", error)
+            await transaction.finish()
+            return .purchased
+        case .success(.unverified(_, let error)):
+            throw error
+        case .userCancelled:
+            return .cancelled
+        case .pending:
+            return .pending
+        @unknown default:
+            return .pending
         }
+    }
+
+    @discardableResult
+    func restore() async throws -> Bool {
+        try await AppStore.sync()
+        await refreshEntitlements()
+        return isSubscribed
     }
 
     func refreshEntitlements() async {
+        refreshGeneration += 1
+        let generation = refreshGeneration
+        let snapshot = await Self.subscriptionSnapshot(productIDs: productIDs)
+
+        guard generation == refreshGeneration else { return }
+        purchasedProductIDs = snapshot.productIDs
+        isSubscribed = !snapshot.productIDs.isEmpty
+        hasLoadedEntitlements = true
+        scheduleExpirationRefresh(at: snapshot.expiration)
+    }
+
+    private nonisolated struct SubscriptionSnapshot: Sendable {
+        let productIDs: Set<String>
+        let expiration: Date?
+    }
+
+    @concurrent
+    private static func subscriptionSnapshot(productIDs: Set<String>) async -> SubscriptionSnapshot {
         var owned = Set<String>()
-        for await entitlement in Transaction.currentEntitlements {
-            if case .verified(let tx) = entitlement {
-                owned.insert(tx.productID)
+        var nextExpiration: Date?
+
+        for productID in productIDs {
+            guard let result = await Transaction.latest(for: productID),
+                  case .verified(let latest) = result,
+                  latest.revocationDate == nil,
+                  !latest.isUpgraded,
+                  let status = await latest.subscriptionStatus,
+                  status.state == .subscribed || status.state == .inGracePeriod,
+                  case .verified(let transaction) = status.transaction,
+                  case .verified(let renewal) = status.renewalInfo,
+                  productIDs.contains(transaction.productID),
+                  transaction.productType == .autoRenewable,
+                  transaction.revocationDate == nil,
+                  !transaction.isUpgraded
+            else { continue }
+
+            let expiration = status.state == .inGracePeriod
+                ? renewal.gracePeriodExpirationDate ?? transaction.expirationDate
+                : transaction.expirationDate
+            if status.state == .subscribed {
+                guard let expiration, expiration > Date() else { continue }
+            } else if let graceExpiration = renewal.gracePeriodExpirationDate,
+                      graceExpiration <= Date() {
+                continue
+            }
+            owned.insert(transaction.productID)
+            if let expiration {
+                nextExpiration = min(nextExpiration ?? expiration, expiration)
             }
         }
-        purchasedProductIDs = owned
-        isSubscribed = await computeActiveSubscription()
+
+        return SubscriptionSnapshot(productIDs: owned, expiration: nextExpiration)
     }
 
-    private func computeActiveSubscription() async -> Bool {
-        for id in productIDs {
-            if let latest = await Transaction.latest(for: id),
-                case .verified(let tx) = latest,
-                tx.revocationDate == nil,
-                (tx.expirationDate ?? .distantFuture) > Date()
-            {
-                return true
+    private func observeTransactionUpdates() {
+        transactionUpdatesTask = Task { [weak self] in
+            for await result in Transaction.updates {
+                guard !Task.isCancelled, let self else { return }
+                guard case .verified(let transaction) = result,
+                      self.productIDs.contains(transaction.productID)
+                else { continue }
+                await self.refreshEntitlements()
+                await transaction.finish()
             }
         }
-        return false
     }
 
-    func observeTransactionUpdates() {
-        Task { [weak self] in
-            guard let self else { return }
-            for await update in Transaction.updates {
-                if case .verified(let tx) = update {
-                    await tx.finish()
-                    await self.refreshEntitlements()
-                }
+    private func scheduleExpirationRefresh(at date: Date?) {
+        expirationTask?.cancel()
+        expirationTask = nil
+        guard let date else { return }
+
+        let delay = date > Date() ? date.timeIntervalSinceNow + 1 : 60
+        expirationTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(max(1, delay)))
+                guard !Task.isCancelled else { return }
+                await self?.refreshEntitlements()
+            } catch {
             }
         }
     }

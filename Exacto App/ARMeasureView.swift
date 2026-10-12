@@ -53,10 +53,12 @@ struct ARMeasureView: UIViewRepresentable {
         }
         cfg.environmentTexturing = .automatic
 
-        view.session.run(
-            cfg,
-            options: [.resetTracking, .removeExistingAnchors]
-        )
+        if ARWorldTrackingConfiguration.isSupported {
+            view.session.run(
+                cfg,
+                options: [.resetTracking, .removeExistingAnchors]
+            )
+        }
 
         let reticle = ReticleView()
         reticle.translatesAutoresizingMaskIntoConstraints = false
@@ -68,6 +70,13 @@ struct ARMeasureView: UIViewRepresentable {
             reticle.centerYAnchor.constraint(equalTo: view.centerYAnchor),
         ])
 
+        context.coordinator.lastTrigger = placePointTrigger
+        context.coordinator.lastCaptureTrigger = captureTrigger
+        context.coordinator.lastBackTrigger = backTrigger
+        context.coordinator.lastTrashTrigger = trashTrigger
+        context.coordinator.lastLinesDeleteTrigger = linesDeleteTrigger
+        context.coordinator.lastLinesDeleteAllTrigger = linesDeleteAllTrigger
+        context.coordinator.updateMode(mode)
         context.coordinator.attach(to: view)
         context.coordinator.reticleView = reticle
 
@@ -80,6 +89,7 @@ struct ARMeasureView: UIViewRepresentable {
     func updateUIView(_ uiView: ARSCNView, context: Context) {
 
         context.coordinator.setUnitSystem(unitSystem)
+        context.coordinator.updateMode(mode)
 
         if context.coordinator.lastTrigger != placePointTrigger {
             context.coordinator.lastTrigger = placePointTrigger
@@ -110,8 +120,11 @@ struct ARMeasureView: UIViewRepresentable {
                 linesDeleteAllTrigger
             context.coordinator.deleteAllSegments()
         }
+    }
 
-        context.coordinator.updateMode(mode)
+    static func dismantleUIView(_ uiView: ARSCNView, coordinator: Coordinator) {
+        coordinator.stop()
+        uiView.session.pause()
     }
 
     final class Coordinator: NSObject {
@@ -234,17 +247,13 @@ struct ARMeasureView: UIViewRepresentable {
         }
 
         private func tintedImage(_ image: UIImage, color: UIColor) -> UIImage {
-            UIGraphicsBeginImageContextWithOptions(
-                image.size,
-                false,
-                image.scale
-            )
-            color.set()
-            image.withRenderingMode(.alwaysTemplate)
-                .draw(in: CGRect(origin: .zero, size: image.size))
-            let out = UIGraphicsGetImageFromCurrentImageContext()!
-            UIGraphicsEndImageContext()
-            return out
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = image.scale
+            return UIGraphicsImageRenderer(size: image.size, format: format).image { _ in
+                color.setFill()
+                image.withRenderingMode(.alwaysTemplate)
+                    .draw(in: CGRect(origin: .zero, size: image.size))
+            }
         }
 
         private func makeAreaBadge(
@@ -432,6 +441,8 @@ struct ARMeasureView: UIViewRepresentable {
 
         func attach(to view: ARSCNView) {
             self.view = view
+            clearSegments()
+            clearArea()
             let dl = CADisplayLink(target: self, selector: #selector(tick))
             dl.add(to: .main, forMode: .common)
             displayLink = dl
@@ -441,7 +452,12 @@ struct ARMeasureView: UIViewRepresentable {
             hapticWarn.prepare()
         }
 
-        deinit { displayLink?.invalidate() }
+        func stop() {
+            displayLink?.invalidate()
+            displayLink = nil
+            reticleView = nil
+            view = nil
+        }
         func setUnitSystem(_ new: UnitSystem) {
             guard new != unitSystem else { return }
             unitSystem = new
@@ -456,15 +472,14 @@ struct ARMeasureView: UIViewRepresentable {
             PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
                 guard status == .authorized || status == .limited else {
 
-                    UINotificationFeedbackGenerator().notificationOccurred(
-                        .error
-                    )
-                    print("⚠️ No Photos permission to add.")
+                    DispatchQueue.main.async {
+                        UINotificationFeedbackGenerator().notificationOccurred(.error)
+                    }
                     return
                 }
                 PHPhotoLibrary.shared().performChanges({
                     PHAssetChangeRequest.creationRequestForAsset(from: image)
-                }) { success, error in
+                }) { success, _ in
                     DispatchQueue.main.async {
                         if success {
                             UINotificationFeedbackGenerator()
@@ -472,9 +487,6 @@ struct ARMeasureView: UIViewRepresentable {
                         } else {
                             UINotificationFeedbackGenerator()
                                 .notificationOccurred(.error)
-                            if let error = error {
-                                print("❌ Save error:", error)
-                            }
                         }
                     }
                 }
@@ -519,40 +531,40 @@ struct ARMeasureView: UIViewRepresentable {
             let height = max(iconH, tSize.height) + padV * 2
             let size = CGSize(width: ceil(width), height: ceil(height))
 
-            UIGraphicsBeginImageContextWithOptions(size, false, 0)
-            let ctx = UIGraphicsGetCurrentContext()!
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = view?.contentScaleFactor ?? 1
+            return UIGraphicsImageRenderer(size: size, format: format).image { renderer in
+                let ctx = renderer.cgContext
 
-            let path = UIBezierPath(
-                roundedRect: CGRect(origin: .zero, size: size),
-                cornerRadius: size.height / 2
-            )
-            color.setFill()
-            path.fill()
+                let path = UIBezierPath(
+                    roundedRect: CGRect(origin: .zero, size: size),
+                    cornerRadius: size.height / 2
+                )
+                color.setFill()
+                path.fill()
 
-            let iconY = (size.height - iconH) / 2
-            icon.draw(
-                in: CGRect(x: padH, y: iconY, width: iconW, height: iconH)
-            )
+                let iconY = (size.height - iconH) / 2
+                icon.draw(
+                    in: CGRect(x: padH, y: iconY, width: iconW, height: iconH)
+                )
 
-            let textX = padH + iconW + spacing
-            let textRect = CGRect(
-                x: textX,
-                y: (size.height - tSize.height) / 2,
-                width: tSize.width,
-                height: tSize.height
-            )
-            (text as NSString).draw(
-                in: textRect,
-                withAttributes: [.font: font, .foregroundColor: UIColor.white]
-            )
+                let textX = padH + iconW + spacing
+                let textRect = CGRect(
+                    x: textX,
+                    y: (size.height - tSize.height) / 2,
+                    width: tSize.width,
+                    height: tSize.height
+                )
+                (text as NSString).draw(
+                    in: textRect,
+                    withAttributes: [.font: font, .foregroundColor: UIColor.white]
+                )
 
-            ctx.setStrokeColor(UIColor.white.withAlphaComponent(0.12).cgColor)
-            ctx.setLineWidth(1)
-            path.stroke()
+                ctx.setStrokeColor(UIColor.white.withAlphaComponent(0.12).cgColor)
+                ctx.setLineWidth(1)
+                path.stroke()
 
-            let out = UIGraphicsGetImageFromCurrentImageContext()!
-            UIGraphicsEndImageContext()
-            return out
+            }
         }
 
         private func makePillLabel(
@@ -604,33 +616,33 @@ struct ARMeasureView: UIViewRepresentable {
                 height: tSize.height + padV * 2
             )
 
-            UIGraphicsBeginImageContextWithOptions(size, false, 0)
-            let ctx = UIGraphicsGetCurrentContext()!
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = view?.contentScaleFactor ?? 1
+            return UIGraphicsImageRenderer(size: size, format: format).image { renderer in
+                let ctx = renderer.cgContext
 
-            let path = UIBezierPath(
-                roundedRect: CGRect(origin: .zero, size: size),
-                cornerRadius: size.height / 2
-            )
-            color.setFill()
-            path.fill()
+                let path = UIBezierPath(
+                    roundedRect: CGRect(origin: .zero, size: size),
+                    cornerRadius: size.height / 2
+                )
+                color.setFill()
+                path.fill()
 
-            (text as NSString).draw(
-                in: CGRect(
-                    x: (size.width - tSize.width) / 2,
-                    y: (size.height - tSize.height) / 2,
-                    width: tSize.width,
-                    height: tSize.height
-                ),
-                withAttributes: [.font: font, .foregroundColor: UIColor.white]
-            )
+                (text as NSString).draw(
+                    in: CGRect(
+                        x: (size.width - tSize.width) / 2,
+                        y: (size.height - tSize.height) / 2,
+                        width: tSize.width,
+                        height: tSize.height
+                    ),
+                    withAttributes: [.font: font, .foregroundColor: UIColor.white]
+                )
 
-            ctx.setStrokeColor(UIColor.white.withAlphaComponent(0.12).cgColor)
-            ctx.setLineWidth(1)
-            path.stroke()
+                ctx.setStrokeColor(UIColor.white.withAlphaComponent(0.12).cgColor)
+                ctx.setLineWidth(1)
+                path.stroke()
 
-            let img = UIGraphicsGetImageFromCurrentImageContext()!
-            UIGraphicsEndImageContext()
-            return img
+            }
         }
 
         private func raycastFromCenterDetailed() -> (
@@ -670,10 +682,8 @@ struct ARMeasureView: UIViewRepresentable {
             {
                 return (r.worldTransform, .weak)
             }
-            if let r = view.hitTest(p, types: .featurePoint).first,
-                valid(r.worldTransform)
-            {
-                return (r.worldTransform, .weak)
+            if let transform = featurePointTransform(near: p), valid(transform) {
+                return (transform, .weak)
             }
             return nil
         }
@@ -976,42 +986,33 @@ struct ARMeasureView: UIViewRepresentable {
         }
 
         private func raycastTransformFromCenter() -> simd_float4x4? {
-            guard let view = view else { return nil }
-            let p = CGPoint(x: view.bounds.midX, y: view.bounds.midY)
-            func valid(_ t: simd_float4x4) -> Bool {
-                guard let cam = view.pointOfView?.simdWorldTransform else {
-                    return true
-                }
-                let c = simd_make_float3(cam.columns.3)
-                let w = simd_make_float3(t.columns.3)
-                let d = simd_length(w - c)
-                return d >= minHit && d <= maxHit
-            }
+            raycastFromCenterDetailed()?.transform
+        }
 
-            if let q = view.raycastQuery(
-                from: p,
-                allowing: .existingPlaneGeometry,
-                alignment: .any
-            ),
-                let r = view.session.raycast(q).first, valid(r.worldTransform)
-            {
-                return r.worldTransform
+        private func featurePointTransform(near point: CGPoint) -> simd_float4x4? {
+            guard let view, let frame = view.session.currentFrame,
+                  let cloud = frame.rawFeaturePoints else { return nil }
+            let cameraPosition = simd_make_float3(frame.camera.transform.columns.3)
+            var closest: SIMD3<Float>?
+            var bestScreenDistance: Float = 24 * 24
+
+            for feature in cloud.points {
+                let distance = simd_distance(feature, cameraPosition)
+                guard distance >= minHit, distance <= maxHit else { continue }
+                let projected = view.projectPoint(SCNVector3(feature.x, feature.y, feature.z))
+                guard projected.z >= 0, projected.z <= 1 else { continue }
+                let dx = projected.x - Float(point.x)
+                let dy = projected.y - Float(point.y)
+                let screenDistance = dx * dx + dy * dy
+                if screenDistance < bestScreenDistance {
+                    bestScreenDistance = screenDistance
+                    closest = feature
+                }
             }
-            if let q = view.raycastQuery(
-                from: p,
-                allowing: .estimatedPlane,
-                alignment: .any
-            ),
-                let r = view.session.raycast(q).first, valid(r.worldTransform)
-            {
-                return r.worldTransform
-            }
-            if let r = view.hitTest(p, types: .featurePoint).first,
-                valid(r.worldTransform)
-            {
-                return r.worldTransform
-            }
-            return nil
+            guard let closest else { return nil }
+            var transform = matrix_identity_float4x4
+            transform.columns.3 = SIMD4(closest, 1)
+            return transform
         }
 
         private func makeDot(at p: SCNVector3) -> SCNNode {
@@ -1211,7 +1212,7 @@ struct ARMeasureView: UIViewRepresentable {
                 simd_float3(to.x - from.x, to.y - from.y, to.z - from.z)
             )
             var axis = simd_cross(u, v)
-            var axisLen = simd_length(axis)
+            let axisLen = simd_length(axis)
 
             if axisLen < 1e-6 {
 

@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 final class OverlayManager: ObservableObject {
     @Published var showPaywall: Bool = false
 

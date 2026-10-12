@@ -11,7 +11,8 @@ final class MotionLeveler: ObservableObject {
 
     private let mm = CMMotionManager()
 
-    init() {
+    func start() {
+        guard !mm.isDeviceMotionActive else { return }
         mm.deviceMotionUpdateInterval = 1 / 60
         mm.startDeviceMotionUpdates(
             using: .xArbitraryCorrectedZVertical,
@@ -34,7 +35,7 @@ final class MotionLeveler: ObservableObject {
         }
     }
 
-    deinit { mm.stopDeviceMotionUpdates() }
+    func stop() { mm.stopDeviceMotionUpdates() }
 
     private static func screenAlignedXY(gx: Double, gy: Double) -> (
         Double, Double
@@ -115,7 +116,9 @@ struct LevelOverlay: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
 
-        .onChange(of: motion.tiltFromHorizontalDeg) { tilt in
+        .onAppear { motion.start() }
+        .onDisappear { motion.stop() }
+        .onChange(of: motion.tiltFromHorizontalDeg) { _, tilt in
             guard !isLocked else { return }
             switch mode {
             case .horizontal where tilt > toVertical:
@@ -126,7 +129,7 @@ struct LevelOverlay: View {
             }
         }
 
-        .onChange(of: isLocked) { locked in
+        .onChange(of: isLocked) { _, locked in
             guard locked else { return }
             lockAngle = motion.angleDeg
             lockTilt = motion.tiltFromHorizontalDeg
@@ -146,7 +149,7 @@ struct LevelOverlay: View {
             .shadow(radius: 3)
 
         centerBadge(size: size, text: signedNoPlusZero(angleDisplay))
-            .onChange(of: isPerfect) { good in
+            .onChange(of: isPerfect) { _, good in
                 guard !isLocked else { return }
                 if good && !didHaptic {
                     UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
@@ -185,7 +188,7 @@ struct LevelOverlay: View {
                 .interpolatingSpring(stiffness: 220, damping: 22),
                 value: dy
             )
-            .onChange(of: isFlat) { good in
+            .onChange(of: isFlat) { _, good in
                 guard !isLocked else { return }
                 if good && !didHaptic {
                     UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
@@ -204,7 +207,7 @@ struct LevelOverlay: View {
             Circle().fill(.black.opacity(0.45))
             Text(text)
                 .font(.system(size: size * 0.18, weight: .black))
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.3)
                 .allowsTightening(true)
@@ -214,7 +217,7 @@ struct LevelOverlay: View {
     }
 }
 
-private struct Crosshair: Shape {
+private nonisolated struct Crosshair: Shape {
     func path(in r: CGRect) -> Path {
         var p = Path()
         let w = min(r.width, r.height)
@@ -234,7 +237,7 @@ private struct Crosshair: Shape {
     }
 }
 
-private struct LevelLine: Shape {
+private nonisolated struct LevelLine: Shape {
     func path(in r: CGRect) -> Path {
         var p = Path()
         p.move(to: CGPoint(x: r.minX, y: r.midY))

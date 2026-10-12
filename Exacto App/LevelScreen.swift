@@ -30,10 +30,3 @@ struct LevelScreen: View {
 }
 
 enum LevelMode { case horizontal, vertical }
-
-#Preview("Horizontal") {
-    LevelScreen(initialMode: .horizontal, isLocked: .constant(false))
-}
-#Preview("Vertical") {
-    LevelScreen(initialMode: .vertical, isLocked: .constant(false))
-}

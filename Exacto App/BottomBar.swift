@@ -1,13 +1,14 @@
 import SwiftUI
 
 struct BottomBarItem: Identifiable {
-    let id = UUID()
+    var id: String { title }
     let title: String
     let iconName: String
     var locked: Bool = false
 }
 
 struct BottomBar: View {
+    @Environment(\.windowMetrics) private var windowMetrics
     let items: [BottomBarItem]
     @Binding var selected: Int
 
@@ -18,13 +19,12 @@ struct BottomBar: View {
 
     var activeColor: Color = Color("MainColor")
     var inactiveColor: Color = Color(hex: "7E7E7E")
-    var iconSize: CGFloat = Device.isSmall ? 26 : 32
+    private var iconSize: CGFloat { windowMetrics.isSmall ? 26 : 32 }
     var lockBadgeSize: CGFloat = 20
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(items.indices, id: \.self) { i in
-                let item = items[i]
+            ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
                 let isSelected = (i == selected)
 
                 Button {
@@ -46,7 +46,7 @@ struct BottomBar: View {
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: iconSize, height: iconSize)
-                                .foregroundColor(
+                                .foregroundStyle(
                                     isSelected ? activeColor : inactiveColor
                                 )
 
@@ -62,15 +62,15 @@ struct BottomBar: View {
                                             .resizable()
                                             .scaledToFit()
                                             .frame(width: 11, height: 11)
-                                            .foregroundColor(activeColor)
+                                            .foregroundStyle(activeColor)
                                     )
                                     .offset(x: 10, y: -10)
                             }
                         }
 
                         Text(item.title)
-                            .font(.custom("SFProDisplay-Regular", size: 12))
-                            .foregroundColor(
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundStyle(
                                 isSelected ? activeColor : inactiveColor
                             )
                     }
@@ -79,6 +79,9 @@ struct BottomBar: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(item.title)
+                .accessibilityValue(item.locked ? "Requires Premium" : "Available")
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }
         .padding(.horizontal, 8)
@@ -94,71 +97,5 @@ struct BottomBar: View {
                 )
             }
         )
-    }
-}
-
-#Preview {
-    StatefulPreviewWrapper(0) { selected in
-        ZStack {
-            Color(hex: "#383B3E")
-                .ignoresSafeArea()
-            VStack {
-                Spacer()
-                BottomBar(
-                    items: [
-                        BottomBarItem(
-                            title: "Measure",
-                            iconName: "app_btn_menu05",
-                            locked: false
-                        ),
-                        BottomBarItem(
-                            title: "Square",
-                            iconName: "app_btn_menu03",
-                            locked: true
-                        ),
-                        BottomBarItem(
-                            title: "Height",
-                            iconName: "app_btn_menu04",
-                            locked: true
-                        ),
-                        BottomBarItem(
-                            title: "Level",
-                            iconName: "app_btn_menu02",
-                            locked: true
-                        ),
-                        BottomBarItem(
-                            title: "Ruler",
-                            iconName: "app_btn_menu01",
-                            locked: true
-                        ),
-                    ],
-                    selected: selected,
-                    onTap: { idx in
-                        print("Selected: \(idx)")
-                    },
-                    onLockedTap: { idx in
-                        print("Locked item tapped: \(idx)")
-                    }
-                )
-
-            }
-        }
-    }
-}
-
-struct StatefulPreviewWrapper<Value, Content: View>: View {
-    @State private var value: Value
-    private let content: (Binding<Value>) -> Content
-
-    init(
-        _ initialValue: Value,
-        @ViewBuilder content: @escaping (Binding<Value>) -> Content
-    ) {
-        self._value = State(initialValue: initialValue)
-        self.content = content
-    }
-
-    var body: some View {
-        content($value)
     }
 }

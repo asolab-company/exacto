@@ -16,14 +16,14 @@ enum MeasureMode: String {
 }
 
 struct ContentView: View {
+    @Environment(\.windowMetrics) private var windowMetrics
     @EnvironmentObject var iap: IAPManager
     @EnvironmentObject var overlay: OverlayManager
     @State private var status = AVCaptureDevice.authorizationStatus(for: .video)
     @State private var isTorchOn = false
     @State private var selected = 0
-    @State private var showOverlay = false
     @State private var showSettings = false
-    @State private var lockedOverlay: LockedOverlayData? = nil
+    @State private var didPresentInitialPaywall = false
     @State private var mode: MeasureMode = .line
 
     @State private var areaIsClosed = false
@@ -71,7 +71,7 @@ struct ContentView: View {
     @State private var captureTrigger = 0
 
     private let baseItems: [BottomBarItem] = [
-        .init(title: "Measure", iconName: "app_btn_menu05", locked: false),
+        .init(title: "Measure", iconName: "app_btn_menu05", locked: true),
         .init(title: "Square", iconName: "app_btn_menu03", locked: true),
         .init(title: "Height", iconName: "app_btn_menu04", locked: true),
         .init(title: "Level", iconName: "app_btn_menu02", locked: true),
@@ -79,20 +79,10 @@ struct ContentView: View {
     ]
 
     private var items: [BottomBarItem] {
-        if iap.isSubscribed {
-
-            return baseItems.map { item in
-                var m = item
-                m.locked = false
-                return m
-            }
-        } else {
-
-            return baseItems.enumerated().map { idx, item in
-                var m = item
-                m.locked = (idx == 0) ? false : true
-                return m
-            }
+        baseItems.map { item in
+            var item = item
+            item.locked = !iap.isSubscribed
+            return item
         }
     }
 
@@ -101,10 +91,46 @@ struct ContentView: View {
         return items[idx]
     }
 
+    private var lockedOverlay: LockedOverlayData? {
+        guard currentItem.locked else { return nil }
+        switch currentItem.title {
+        case "Measure":
+            return .init(
+                title: "Measure Distance",
+                subtitle: "Use your camera to measure\ndistances and objects",
+                bgImageName: "app_ic_onbording01"
+            )
+        case "Square":
+            return .init(
+                title: "Measure Square",
+                subtitle: "Use your camera to measure\nsquare of rooms or objects",
+                bgImageName: "square_vip"
+            )
+        case "Height":
+            return .init(
+                title: "Measure Height",
+                subtitle: "Use your camera to measure\nheight of rooms or objects",
+                bgImageName: "height_vip"
+            )
+        case "Level":
+            return .init(
+                title: "Bubble Level",
+                subtitle: "Check if surfaces are perfectly straight or aligned.\nIdeal for hanging shelves, pictures, or floor.",
+                bgImageName: "bubble_vip"
+            )
+        default:
+            return .init(
+                title: "Measure with a Smart Ruler",
+                subtitle: "Turn your phone into a digital ruler. Quickly measure small objects with precision, anytime and anywhere.",
+                bgImageName: "ruller_vip"
+            )
+        }
+    }
+
     var body: some View {
         ZStack {
 
-            if let locked = lockedOverlay, let bg = locked.bgImageName {
+            if lockedOverlay != nil {
                 Color(hex: "#383B3E")
                     .ignoresSafeArea()
             } else if status == .authorized {
@@ -148,7 +174,7 @@ struct ContentView: View {
                         .resizable()
                         .scaledToFit()
                         .ignoresSafeArea()
-                        .offset(y: Device.isSmall ? -140 : 0)
+                        .offset(y: windowMetrics.isSmall ? -140 : 0)
 
                     Spacer()
                 }
@@ -177,7 +203,7 @@ struct ContentView: View {
                                         .resizable()
                                         .scaledToFit()
                                         .frame(width: 20, height: 20)
-                                        .foregroundColor(
+                                        .foregroundStyle(
                                             isTorchOn
                                                 ? Color("MainColor") : .white
                                         )
@@ -206,7 +232,7 @@ struct ContentView: View {
                                                         width: 10,
                                                         height: 10
                                                     )
-                                                    .foregroundColor(
+                                                    .foregroundStyle(
                                                         Color("MainColor")
                                                     )
                                             )
@@ -224,7 +250,7 @@ struct ContentView: View {
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: 20, height: 20)
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                                 .padding(12)
                                 .background(
                                     ZStack {
@@ -233,7 +259,8 @@ struct ContentView: View {
                                     }
                                     .frame(width: 46, height: 46)
                                 )
-                        }.opacity(lockedOverlay == nil ? 1 : 0)
+                        }
+                        .accessibilityLabel("Settings")
 
                     }.padding(.horizontal)
                         .padding(.top)
@@ -244,11 +271,11 @@ struct ContentView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(width: 24, height: 24)
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
 
                         Text(currentItem.title)
-                            .font(.custom("SFProDisplay-Regular", size: 12))
-                            .foregroundColor(.white)
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundStyle(.white)
 
                     }
                     .padding(.horizontal, 10)
@@ -303,7 +330,7 @@ struct ContentView: View {
                                         .resizable()
                                         .scaledToFit()
                                         .frame(width: 20, height: 20)
-                                        .foregroundColor(.white)
+                                        .foregroundStyle(.white)
                                         .padding(12)
                                         .background(
                                             ZStack {
@@ -358,7 +385,7 @@ struct ContentView: View {
                                             .resizable()
                                             .scaledToFit()
                                             .frame(width: 20, height: 20)
-                                            .foregroundColor(.white)
+                                            .foregroundStyle(.white)
                                             .padding(12)
                                             .background(
                                                 ZStack {
@@ -394,7 +421,7 @@ struct ContentView: View {
                                             .resizable()
                                             .scaledToFit()
                                             .frame(width: 20, height: 20)
-                                            .foregroundColor(
+                                            .foregroundStyle(
                                                 isTorchOn
                                                     ? Color("MainColor")
                                                     : .white
@@ -426,7 +453,7 @@ struct ContentView: View {
                                                             width: 10,
                                                             height: 10
                                                         )
-                                                        .foregroundColor(
+                                                        .foregroundStyle(
                                                             Color("MainColor")
                                                         )
                                                 )
@@ -439,12 +466,15 @@ struct ContentView: View {
                                 .padding(.top)
 
                             Button(action: {
-
+                                guard iap.isSubscribed else {
+                                    overlay.show()
+                                    return
+                                }
                                 if !isPlusDisabled { placePointTrigger &+= 1 }
                             }) {
                                 Image(systemName: "plus")
                                     .font(.system(size: 28, weight: .bold))
-                                    .foregroundColor(.white)
+                                    .foregroundStyle(.white)
                                     .frame(width: 64, height: 64)
                                     .background(Color.blue)
                                     .clipShape(Circle())
@@ -455,6 +485,7 @@ struct ContentView: View {
                                         y: 3
                                     )
                             }
+                            .accessibilityLabel("Add measurement point")
                             .disabled(isPlusDisabled)
                             .allowsHitTesting(!isPlusDisabled)
                             .opacity(isPlusDisabled ? 0.35 : 1.0)
@@ -480,7 +511,7 @@ struct ContentView: View {
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: 28, height: 28)
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                                 .padding(20)
                                 .background(Color("MainColor"))
                                 .clipShape(Circle())
@@ -502,81 +533,20 @@ struct ContentView: View {
                 BottomBar(
                     items: items,
                     selected: $selected,
-                    onTap: { idx in
-                        setTorch(false)
-                        selected = idx
-                        withAnimation { lockedOverlay = nil }
-                        mode = modeForTitle(items[idx].title)
-                    },
-                    onLockedTap: { idx in
-                        if iap.isSubscribed {
-                            setTorch(false)
-                            selected = idx
-                            withAnimation { lockedOverlay = nil }
-                            mode = modeForTitle(items[idx].title)
-                        } else {
-
-                            selected = idx
-
-                            let item = items[idx]
-                            withAnimation {
-                                switch item.title {
-                                case "Square":
-                                    lockedOverlay = .init(
-                                        title: "Measure Square",
-                                        subtitle:
-                                            "Use your camera to measure\nsquare of rooms or objects",
-                                        bgImageName: "square_vip"
-                                    )
-                                case "Height":
-                                    lockedOverlay = .init(
-                                        title: "Measure Height",
-                                        subtitle:
-                                            "Use your camera to measure\nheight of rooms or objects",
-                                        bgImageName: "height_vip"
-                                    )
-                                case "Level":
-                                    lockedOverlay = .init(
-                                        title: "Bubble Level",
-                                        subtitle:
-                                            "Check if surfaces are perfectly straight or aligned.\nIdeal for hanging shelves, pictures, or floor.",
-                                        bgImageName: "bubble_vip"
-                                    )
-                                case "Ruler":
-                                    lockedOverlay = .init(
-                                        title: "Measure with a Smart Ruler",
-                                        subtitle:
-                                            "Turn your phone into a digital ruler. Quickly measure small objects with precision, anytime and anywhere.",
-                                        bgImageName: "ruller_vip"
-                                    )
-                                default:
-                                    lockedOverlay = .init(
-                                        title: "Feature Locked",
-                                        subtitle:
-                                            "This feature requires a Premium subscription.",
-                                        bgImageName: "bg_square_locked"
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    onTap: selectItem,
+                    onLockedTap: selectItem
                 )
             }
 
         }
-        .onChange(of: iap.isSubscribed) { sub in
-            if sub { withAnimation { lockedOverlay = nil } }
+        .onChange(of: iap.isSubscribed) { _, subscribed in
+            if !subscribed { setTorch(false) }
         }
-        .onChange(of: areaIsClosed) { closed in
-            print("areaIsClosed ->", closed)
-        }
+        .onChange(of: iap.hasLoadedEntitlements) { presentInitialPaywallIfNeeded() }
         .onDisappear { setTorch(false) }
         .onAppear {
             refreshStatus()
-
-            if !iap.isSubscribed {
-                overlay.show()
-            }
+            presentInitialPaywallIfNeeded()
         }
 
         .onReceive(
@@ -596,6 +566,19 @@ struct ContentView: View {
 
     }
 
+    private func presentInitialPaywallIfNeeded() {
+        guard iap.hasLoadedEntitlements, !didPresentInitialPaywall else { return }
+        didPresentInitialPaywall = true
+        if !iap.isSubscribed { overlay.show() }
+    }
+
+    private func selectItem(_ index: Int) {
+        guard items.indices.contains(index) else { return }
+        setTorch(false)
+        selected = index
+        mode = modeForTitle(items[index].title)
+    }
+
     private func modeForTitle(_ title: String) -> MeasureMode {
         switch title {
         case "Measure": return .line
@@ -606,24 +589,22 @@ struct ContentView: View {
     }
 
     private func setTorch(_ on: Bool) {
+        guard isTorchOn != on else { return }
         guard let device = AVCaptureDevice.default(for: .video), device.hasTorch
         else {
-            print("⚠️ Torch not available")
             return
         }
         do {
             try device.lockForConfiguration()
+            defer { device.unlockForConfiguration() }
             if on {
 
                 try device.setTorchModeOn(level: 0.8)
             } else {
                 device.torchMode = .off
             }
-            device.unlockForConfiguration()
             isTorchOn = on
-        } catch {
-            print("❌ Torch error:", error)
-        }
+        } catch {}
     }
 
     private func isARItem(_ title: String) -> Bool {
@@ -639,21 +620,21 @@ struct ContentView: View {
 
             Image("app_ic_no photo")
                 .font(.system(size: 120, weight: .regular))
-                .foregroundColor(Color.white.opacity(0.25))
+                .foregroundStyle(Color.white.opacity(0.25))
                 .padding(.bottom, 24)
 
             Text("Allow Camera Access")
-                .font(.custom("SFProDisplay-Heavy", size: 30))
-                .foregroundColor(Color("MainColor"))
+                .font(.system(size: 30, weight: .heavy))
+                .foregroundStyle(Color("MainColor"))
                 .padding(.bottom, 10)
 
             VStack(spacing: 4) {
                 Text("Measure Height")
-                    .font(.custom("SFProDisplay-Regular", size: 16))
-                    .foregroundColor(.white)
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundStyle(.white)
                 Text("Use your camera to measure\nheight of walls and objects")
-                    .font(.custom("SFProDisplay-Regular", size: 16))
-                    .foregroundColor(.white)
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
             }
 
@@ -663,16 +644,16 @@ struct ContentView: View {
                 HStack {
                     Spacer()
                     Text(primaryTitle)
-                        .font(.custom("SFProDisplay-Bold", size: 16))
-                        .foregroundColor(.white)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                         .font(.system(size: 18, weight: .bold))
                 }
                 .padding()
                 .background(Color("MainColor"))
-                .cornerRadius(10)
+                .clipShape(.rect(cornerRadius: 10))
             }
             .padding(.bottom, 20)
             .padding(.horizontal)
@@ -686,12 +667,12 @@ struct ContentView: View {
 
             VStack(spacing: 12) {
                 Text(locked.title)
-                    .font(.custom("SFProDisplay-Heavy", size: 24))
-                    .foregroundColor(Color("MainColor"))
+                    .font(.system(size: 24, weight: .heavy))
+                    .foregroundStyle(Color("MainColor"))
 
                 Text(locked.subtitle)
-                    .font(.custom("SFProDisplay-Regular", size: 15))
-                    .foregroundColor(.white.opacity(0.9))
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(.white.opacity(0.9))
                     .multilineTextAlignment(.center)
                     .padding(.bottom)
 
@@ -701,16 +682,16 @@ struct ContentView: View {
                     HStack {
                         Spacer()
                         Text("Become Premium User")
-                            .font(.custom("SFProDisplay-Bold", size: 16))
-                            .foregroundColor(.white)
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white)
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                             .font(.system(size: 18, weight: .bold))
                     }
                     .padding()
                     .background(Color("MainColor"))
-                    .cornerRadius(10)
+                    .clipShape(.rect(cornerRadius: 10))
                 }
                 .padding(.bottom, 20)
                 .padding(.horizontal)
@@ -749,10 +730,4 @@ struct ContentView: View {
     private func refreshStatus() {
         status = AVCaptureDevice.authorizationStatus(for: .video)
     }
-}
-
-#Preview {
-    ContentView()
-        .environmentObject(IAPManager.shared)
-        .environmentObject(OverlayManager())
 }

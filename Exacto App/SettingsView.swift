@@ -1,16 +1,18 @@
 import SwiftUI
 
 struct SettingsItem: Identifiable {
-    let id = UUID()
+    var id: String { label }
     let icon: String
     let label: String
     let action: () -> Void
 }
 
 struct SettingsView: View {
-    @EnvironmentObject var overlay: OverlayManager
     @EnvironmentObject var iap: IAPManager
     @Environment(\.dismiss) private var dismiss
+    @State private var restoreMessage: String?
+    @State private var isRestoring = false
+    @State private var showPaywall = false
 
     @AppStorage(Prefs.unitSystemKey) private var unitRaw: String = UnitSystem
         .metric.rawValue
@@ -40,8 +42,18 @@ struct SettingsView: View {
                 icon: "ic_restore",
                 label: "Restore Purchases",
                 action: {
+                    guard !isRestoring else { return }
+                    isRestoring = true
                     Task {
-                        await iap.restore()
+                        defer { isRestoring = false }
+                        do {
+                            let restored = try await iap.restore()
+                            restoreMessage = restored
+                                ? "Your Premium subscription has been restored."
+                                : "No active subscription was found."
+                        } catch {
+                            restoreMessage = error.localizedDescription
+                        }
                     }
                 }
             ),
@@ -67,7 +79,7 @@ struct SettingsView: View {
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: 20, height: 20)
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                                 .padding(12)
                                 .background(
                                     ZStack {
@@ -77,16 +89,17 @@ struct SettingsView: View {
                                     .frame(width: 46, height: 46)
                                 )
                         }
+                        .accessibilityLabel("Close settings")
                     }
 
                     Text("Settings")
-                        .font(.custom("SFProDisplay-Regular", size: 20))
-                        .foregroundColor(.white)
+                        .font(.system(size: 20, weight: .regular))
+                        .foregroundStyle(.white)
                 }
 
                 if !iap.isSubscribed {
                     Button(action: {
-                        overlay.show()
+                        showPaywall = true
                     }) {
                         HStack(spacing: 12) {
 
@@ -94,36 +107,30 @@ struct SettingsView: View {
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: 40, height: 40)
-                                .foregroundColor(.yellow)
+                                .foregroundStyle(.yellow)
 
                             HStack(spacing: 0) {
                                 Text("Become ")
-                                    .foregroundColor(.white)
+                                    .foregroundStyle(.white)
                                     .font(
-                                        .custom(
-                                            "SFProDisplay-Regular",
-                                            size: 20
-                                        )
+                                        .system(size: 20, weight: .regular)
                                     )
                                 Text("Premium ")
-                                    .foregroundColor(.white)
+                                    .foregroundStyle(.white)
                                     .font(
-                                        .custom("SFProDisplay-Bold", size: 20)
+                                        .system(size: 20, weight: .bold)
                                     )
                                 Text("User")
-                                    .foregroundColor(.white)
+                                    .foregroundStyle(.white)
                                     .font(
-                                        .custom(
-                                            "SFProDisplay-Regular",
-                                            size: 20
-                                        )
+                                        .system(size: 20, weight: .regular)
                                     )
                             }
 
                             Spacer()
 
                             Image(systemName: "chevron.right")
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                                 .font(.system(size: 16, weight: .semibold))
                         }
                         .padding(.horizontal, 20)
@@ -150,7 +157,7 @@ struct SettingsView: View {
                         ZStack {
 
                             Image(systemName: "questionmark.circle")
-                                .foregroundColor(.white.opacity(0.9))
+                                .foregroundStyle(.white.opacity(0.9))
                                 .font(.system(size: 18, weight: .semibold))
                         }
                         .frame(width: 28, height: 28)
@@ -158,8 +165,8 @@ struct SettingsView: View {
                         Text(
                             "We’ll make sure that the app displays\nmeasurements in selected units"
                         )
-                        .foregroundColor(.white)
-                        .font(.custom("SFProDisplay-Regular", size: 16))
+                        .foregroundStyle(.white)
+                        .font(.system(size: 16, weight: .regular))
                         .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(.horizontal, 16)
@@ -171,9 +178,9 @@ struct SettingsView: View {
 
                     VStack(spacing: 0) {
                         ForEach(
-                            Array(UnitSystem.allCases.enumerated()),
-                            id: \.offset
-                        ) { idx, system in
+                            UnitSystem.allCases,
+                            id: \.self
+                        ) { system in
                             UnitRow(system: system, selected: unitSelected)
                                 .padding(.horizontal, 30)
                                 .padding(.vertical, 10)
@@ -192,17 +199,14 @@ struct SettingsView: View {
                         Button(action: item.action) {
                             HStack {
                                 Image(item.icon)
-                                    .foregroundColor(.white)
+                                    .foregroundStyle(.white)
                                     .font(.system(size: 20, weight: .semibold))
                                     .frame(width: 24)
 
                                 Text(item.label)
-                                    .foregroundColor(.white)
+                                    .foregroundStyle(.white)
                                     .font(
-                                        .custom(
-                                            "SFProDisplay-Regular",
-                                            size: 16
-                                        )
+                                        .system(size: 16, weight: .regular)
                                     )
                                     .frame(
                                         maxWidth: .infinity,
@@ -210,7 +214,7 @@ struct SettingsView: View {
                                     )
                                     .padding(.leading, 5)
                                 Image(systemName: "chevron.right")
-                                    .foregroundColor(.white)
+                                    .foregroundStyle(.white)
                             }
 
                             .padding(.vertical, 14)
@@ -220,7 +224,7 @@ struct SettingsView: View {
                                     .fill(Color.black.opacity(0.5))
                             )
                         }
-                        .buttonStyle(PlainButtonStyle())
+                        .buttonStyle(.plain)
 
                     }
                 }
@@ -231,7 +235,17 @@ struct SettingsView: View {
             .padding(.horizontal, 20)
             .padding(.top, 20)
         }
-
+        .fullScreenCover(isPresented: $showPaywall) {
+            PayWall()
+        }
+        .alert("Restore Purchases", isPresented: Binding(
+            get: { restoreMessage != nil },
+            set: { if !$0 { restoreMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { restoreMessage = nil }
+        } message: {
+            Text(restoreMessage ?? "")
+        }
     }
 }
 
@@ -256,11 +270,11 @@ struct UnitRow: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(system.rawValue)
-                        .foregroundColor(.white)
-                        .font(.custom("SFProDisplay-Semibold", size: 14))
+                        .foregroundStyle(.white)
+                        .font(.system(size: 14, weight: .semibold))
                     Text(system.description)
-                        .foregroundColor(.white.opacity(0.85))
-                        .font(.custom("SFProDisplay-Regular", size: 11))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .font(.system(size: 11, weight: .regular))
                 }
 
                 Spacer()
@@ -274,7 +288,7 @@ struct UnitRow: View {
                             height: 22
                         )
                         Image(systemName: "checkmark")
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                             .font(.system(size: 12, weight: .bold))
                     }
                     .frame(width: 22, height: 22)
@@ -288,10 +302,4 @@ struct UnitRow: View {
         }
         .buttonStyle(.plain)
     }
-}
-
-#Preview {
-    SettingsView()
-        .environmentObject(IAPManager.shared)
-        .environmentObject(OverlayManager())
 }

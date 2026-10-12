@@ -41,7 +41,6 @@ final class ReticleView: UIView {
     }
 
     private func updatePaths() {
-        let s: CGFloat = 44
         let r: CGFloat = 18
         let c = CGPoint(x: bounds.midX, y: bounds.midY)
 

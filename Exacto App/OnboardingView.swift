@@ -39,10 +39,6 @@ struct Onboarding: View {
             .background(
                 ZStack(alignment: .top) {
                     Color(hex: "383B3E").ignoresSafeArea()
-                    Image("onb_top")
-                        .resizable()
-                        .scaledToFit()
-                        .ignoresSafeArea()
                 }
             )
             .ignoresSafeArea()
@@ -87,15 +83,15 @@ struct Onboarding: View {
                         HStack {
                             Spacer()
                             Text("Continue")
-                                .foregroundColor(.white)
-                                .font(.custom("SFProDisplay-Bold", size: 16))
+                                .foregroundStyle(.white)
+                                .font(.system(size: 16, weight: .bold))
                             Spacer()
                             Image(systemName: "chevron.right")
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                         }
                         .padding()
                         .background(Color("MainColor"))
-                        .cornerRadius(10)
+                        .clipShape(.rect(cornerRadius: 10))
 
                         .opacity(currentTab == 3 && isPreparing ? 0.5 : 1.0)
                     }
@@ -107,13 +103,13 @@ struct Onboarding: View {
                     if !(currentTab == 3 && isPreparing) {
                         VStack(spacing: 2) {
                             Text("By Proceeding You Accept")
-                                .foregroundColor(Color(hex: "BABABA"))
-                                .font(.custom("SFProDisplay-Medium", size: 13))
+                                .foregroundStyle(Color(hex: "BABABA"))
+                                .font(.system(size: 13, weight: .medium))
                             HStack(spacing: 4) {
                                 Text("Our")
-                                    .foregroundColor(Color(hex: "BABABA"))
+                                    .foregroundStyle(Color(hex: "BABABA"))
                                     .font(
-                                        .custom("SFProDisplay-Medium", size: 13)
+                                        .system(size: 13, weight: .medium)
                                     )
                                 Button {
                                     UIApplication.shared.open(
@@ -121,18 +117,15 @@ struct Onboarding: View {
                                     )
                                 } label: {
                                     Text("Terms Of Use")
-                                        .foregroundColor(Color("MainColor"))
+                                        .foregroundStyle(Color("MainColor"))
                                         .font(
-                                            .custom(
-                                                "SFProDisplay-Medium",
-                                                size: 13
-                                            )
+                                            .system(size: 13, weight: .medium)
                                         )
                                 }
                                 Text("And")
-                                    .foregroundColor(Color(hex: "BABABA"))
+                                    .foregroundStyle(Color(hex: "BABABA"))
                                     .font(
-                                        .custom("SFProDisplay-Medium", size: 13)
+                                        .system(size: 13, weight: .medium)
                                     )
                                 Button {
                                     UIApplication.shared.open(
@@ -140,12 +133,9 @@ struct Onboarding: View {
                                     )
                                 } label: {
                                     Text("Privacy Policy")
-                                        .foregroundColor(Color("MainColor"))
+                                        .foregroundStyle(Color("MainColor"))
                                         .font(
-                                            .custom(
-                                                "SFProDisplay-Medium",
-                                                size: 13
-                                            )
+                                            .system(size: 13, weight: .medium)
                                         )
                                 }
                             }
@@ -158,41 +148,35 @@ struct Onboarding: View {
                     if currentTab == 3 && isPreparing {
                         VStack(spacing: 2) {
                             Text("It will just take a couple of seconds")
-                                .foregroundColor(Color(hex: "BABABA"))
-                                .font(.custom("SFProDisplay-Medium", size: 13))
+                                .foregroundStyle(Color(hex: "BABABA"))
+                                .font(.system(size: 13, weight: .medium))
                             HStack(spacing: 4) {
                                 Text("")
-                                    .foregroundColor(Color(hex: "BABABA"))
+                                    .foregroundStyle(Color(hex: "BABABA"))
                                     .font(
-                                        .custom("SFProDisplay-Medium", size: 13)
+                                        .system(size: 13, weight: .medium)
                                     )
                                 Button {
 
                                 } label: {
                                     Text("")
-                                        .foregroundColor(Color("MainColor"))
+                                        .foregroundStyle(Color("MainColor"))
                                         .font(
-                                            .custom(
-                                                "SFProDisplay-Medium",
-                                                size: 13
-                                            )
+                                            .system(size: 13, weight: .medium)
                                         )
                                 }
                                 Text("")
-                                    .foregroundColor(Color(hex: "BABABA"))
+                                    .foregroundStyle(Color(hex: "BABABA"))
                                     .font(
-                                        .custom("SFProDisplay-Medium", size: 13)
+                                        .system(size: 13, weight: .medium)
                                     )
                                 Button {
 
                                 } label: {
                                     Text("")
-                                        .foregroundColor(Color("MainColor"))
+                                        .foregroundStyle(Color("MainColor"))
                                         .font(
-                                            .custom(
-                                                "SFProDisplay-Medium",
-                                                size: 13
-                                            )
+                                            .system(size: 13, weight: .medium)
                                         )
                                 }
                             }
@@ -211,6 +195,7 @@ struct Onboarding: View {
 }
 
 struct OnboardingScreen1: View {
+    @Environment(\.windowMetrics) private var windowMetrics
     var body: some View {
 
         VStack {
@@ -218,7 +203,7 @@ struct OnboardingScreen1: View {
                 .resizable()
                 .scaledToFit()
                 .ignoresSafeArea()
-                .offset(y: Device.isSmall ? -140 : 0)
+                .offset(y: windowMetrics.isSmall ? -140 : 0)
 
             Spacer()
         }
@@ -227,6 +212,8 @@ struct OnboardingScreen1: View {
 }
 
 struct OnboardingScreen2: View {
+    @Environment(\.windowMetrics) private var windowMetrics
+    @ScaledMetric(relativeTo: .title) private var titleSize = 32.0
     var body: some View {
 
         ZStack {
@@ -236,7 +223,7 @@ struct OnboardingScreen2: View {
                     .resizable()
                     .scaledToFit()
                     .ignoresSafeArea()
-                    .offset(y: Device.isSmall ? -140 : 0)
+                    .offset(y: windowMetrics.isSmall ? -140 : 0)
 
                 Spacer()
             }
@@ -245,19 +232,15 @@ struct OnboardingScreen2: View {
                 Spacer()
                 Text("Measure Length")
                     .font(
-                        .custom(
-                            "SFProDisplay-Heavy",
-                            size: 32,
-                            relativeTo: .title
-                        )
+                        .system(size: titleSize, weight: .heavy)
                     )
-                    .foregroundColor(Color("MainColor"))
+                    .foregroundStyle(Color("MainColor"))
 
                 Text(
                     "Use your camera to measure\nlength of rooms or objects"
                 )
-                .font(.custom("SFProDisplay-Regular", size: 16))
-                .foregroundColor(Color(hex: "ffffff"))
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(Color(hex: "ffffff"))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
 
@@ -268,6 +251,8 @@ struct OnboardingScreen2: View {
 }
 
 struct OnboardingScreen3: View {
+    @Environment(\.windowMetrics) private var windowMetrics
+    @ScaledMetric(relativeTo: .title) private var titleSize = 32.0
     @AppStorage(Prefs.unitSystemKey)
     private var unitRaw: String = UnitSystem.metric.rawValue
 
@@ -282,7 +267,7 @@ struct OnboardingScreen3: View {
                     .resizable()
                     .scaledToFit()
                     .ignoresSafeArea()
-                    .offset(y: Device.isSmall ? -160 : 0)
+                    .offset(y: windowMetrics.isSmall ? -160 : 0)
 
                 Spacer()
             }
@@ -291,19 +276,15 @@ struct OnboardingScreen3: View {
                 Spacer()
                 Text("Choose units")
                     .font(
-                        .custom(
-                            "SFProDisplay-Heavy",
-                            size: 32,
-                            relativeTo: .title
-                        )
+                        .system(size: titleSize, weight: .heavy)
                     )
-                    .foregroundColor(Color("MainColor"))
+                    .foregroundStyle(Color("MainColor"))
 
                 Text(
                     "We’ll make sure that the app displays\nmeasurements in selected units"
                 )
-                .font(.custom("SFProDisplay-Regular", size: 16))
-                .foregroundColor(Color(hex: "ffffff"))
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(Color(hex: "ffffff"))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .padding(.bottom)
@@ -319,21 +300,15 @@ struct OnboardingScreen3: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(system.rawValue)
                                         .font(
-                                            .custom(
-                                                "SFProDisplay-Medium",
-                                                size: 14
-                                            )
+                                            .system(size: 14, weight: .medium)
                                         )
-                                        .foregroundColor(.white)
+                                        .foregroundStyle(.white)
 
                                     Text(system.description)
                                         .font(
-                                            .custom(
-                                                "SFProDisplay-Regular",
-                                                size: 11
-                                            )
+                                            .system(size: 11, weight: .regular)
                                         )
-                                        .foregroundColor(.white)
+                                        .foregroundStyle(.white)
                                 }
                                 Spacer()
 
@@ -350,7 +325,7 @@ struct OnboardingScreen3: View {
                                             .fill(Color("MainColor"))
                                             .frame(width: 20, height: 20)
                                         Image(systemName: "checkmark")
-                                            .foregroundColor(.white)
+                                            .foregroundStyle(.white)
                                             .font(
                                                 .system(size: 12, weight: .bold)
                                             )
@@ -367,7 +342,7 @@ struct OnboardingScreen3: View {
                                         lineWidth: 2
                                     )
                                     .background(
-                                        Color.black.opacity(50).cornerRadius(10)
+                                        Color.black.opacity(50).clipShape(.rect(cornerRadius: 10))
                                     )
                             )
                         }
@@ -382,6 +357,8 @@ struct OnboardingScreen3: View {
 }
 
 struct OnboardingScreen4: View {
+    @Environment(\.windowMetrics) private var windowMetrics
+    @ScaledMetric(relativeTo: .title) private var titleSize = 32.0
     @Binding var isPreparing: Bool
 
     struct Step: Identifiable {
@@ -403,7 +380,6 @@ struct OnboardingScreen4: View {
     @State private var stepProgress: CGFloat = 0.0
     @State private var totalProgress: CGFloat = 0.0
     @State private var completed: Set<Int> = []
-    @State private var didStart = false
 
     var body: some View {
         ZStack {
@@ -413,10 +389,10 @@ struct OnboardingScreen4: View {
                         .resizable()
                         .scaledToFit()
                         .ignoresSafeArea()
-                        .offset(y: Device.isSmall ? -160 : 0)
+                        .offset(y: windowMetrics.isSmall ? -160 : 0)
 
                     CircleProgressView(progress: $totalProgress)
-                        .offset(y: Device.isSmall ? -90 : -60)
+                        .offset(y: windowMetrics.isSmall ? -90 : -60)
                 }
                 Spacer()
             }
@@ -425,19 +401,15 @@ struct OnboardingScreen4: View {
                 Spacer()
                 Text("Preparing the app")
                     .font(
-                        .custom(
-                            "SFProDisplay-Heavy",
-                            size: 32,
-                            relativeTo: .title
-                        )
+                        .system(size: titleSize, weight: .heavy)
                     )
-                    .foregroundColor(Color("MainColor"))
+                    .foregroundStyle(Color("MainColor"))
 
                 ForEach(steps.indices, id: \.self) { idx in
                     HStack {
                         Text(steps[idx].title)
-                            .font(.custom("SFProDisplay-Medium", size: 14))
-                            .foregroundColor(.white)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.white)
                             .multilineTextAlignment(.leading)
 
                         Spacer()
@@ -446,7 +418,7 @@ struct OnboardingScreen4: View {
                             ZStack {
                                 Circle().fill(Color(hex: "419400"))
                                 Image(systemName: "checkmark")
-                                    .foregroundColor(.white)
+                                    .foregroundStyle(.white)
                                     .font(.system(size: 10, weight: .bold))
                             }
                             .frame(width: ringSize, height: ringSize)
@@ -473,62 +445,45 @@ struct OnboardingScreen4: View {
             .padding(.horizontal, 30)
         }
         .padding(.bottom, 170)
-        .onAppear {
-
-            guard !didStart else { return }
-            didStart = true
+        .task {
             isPreparing = true
-            runSequence()
-        }
-    }
-
-    private func runSequence() {
-        Task {
-            completed.removeAll()
-            totalProgress = 0
-
-            for idx in steps.indices {
-                currentStepIndex = idx
-                stepProgress = 0
-
-                let frames = 60
-                for f in 0...frames {
-                    try? await Task.sleep(
-                        nanoseconds: UInt64(
-                            (stepDuration / Double(frames)) * 1_000_000_000
-                        )
-                    )
-                    let p = CGFloat(f) / CGFloat(frames)
-
-                    await MainActor.run {
-                        withAnimation(
-                            .linear(duration: stepDuration / Double(frames))
-                        ) {
-                            stepProgress = p
-                        }
-                        totalProgress =
-                            (CGFloat(idx) + p) / CGFloat(steps.count)
-                    }
-                }
-
-                await MainActor.run {
-                    completed.insert(idx)
-                    stepProgress = 0
-                }
-            }
-
-            await MainActor.run {
-                totalProgress = 1.0
+            do {
+                try await runSequence()
+            } catch {
                 isPreparing = false
             }
         }
     }
+
+    private func runSequence() async throws {
+        completed.removeAll()
+        totalProgress = 0
+
+        for idx in steps.indices {
+            currentStepIndex = idx
+            stepProgress = 0
+            let frames = 60
+            for frame in 0...frames {
+                try await Task.sleep(for: .seconds(stepDuration / Double(frames)))
+                let progress = CGFloat(frame) / CGFloat(frames)
+                withAnimation(.linear(duration: stepDuration / Double(frames))) {
+                    stepProgress = progress
+                }
+                totalProgress = (CGFloat(idx) + progress) / CGFloat(steps.count)
+            }
+            completed.insert(idx)
+            stepProgress = 0
+        }
+        totalProgress = 1
+        isPreparing = false
+    }
 }
 
 struct CircleProgressView: View {
+    @Environment(\.windowMetrics) private var windowMetrics
     @Binding var progress: CGFloat
 
-    let size: CGFloat = Device.isSmall ? 190 : 250
+    private var size: CGFloat { windowMetrics.isSmall ? 190 : 250 }
     let lineWidth: CGFloat = 10
 
     var body: some View {
@@ -549,8 +504,8 @@ struct CircleProgressView: View {
                 .animation(.linear(duration: 0.05), value: progress)
 
             Text("\(Int(progress * 100))%")
-                .font(.custom("SFProDisplay-Black", size: 48))
-                .foregroundColor(.white)
+                .font(.system(size: 48, weight: .black))
+                .foregroundStyle(.white)
         }
     }
 }
@@ -576,8 +531,4 @@ struct CircularProgress: View {
         }
         .frame(width: size, height: size)
     }
-}
-
-#Preview {
-    Onboarding()
 }

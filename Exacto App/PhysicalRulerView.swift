@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 
 struct DualRulerView: View {
+    @Environment(\.windowMetrics) private var windowMetrics
     @AppStorage("ruler.calibration") private var calibration: Double = 1.0
     @State private var showCal = false
 
@@ -61,7 +62,7 @@ struct DualRulerView: View {
     }
 
     private var pointsPerInch: CGFloat {
-        defaultPPI() / UIScreen.main.nativeScale
+        defaultPPI(nativeSize: windowMetrics.screen.nativeSize) / max(1, windowMetrics.screen.nativeScale)
     }
     private var pointsPerMMNominal: CGFloat { pointsPerInch / 25.4 }
     private var pointsPerMM: CGFloat {
@@ -80,9 +81,7 @@ struct DualRulerView: View {
         let inchText = String(format: "%.3f in", inches)
 
         let fontSize: CGFloat = 16
-        let uiFont =
-            UIFont(name: "SFProDisplay-Bold", size: fontSize)
-            ?? .systemFont(ofSize: fontSize, weight: .bold)
+        let uiFont = UIFont.systemFont(ofSize: fontSize, weight: .bold)
         let separatorHeight = uiFont.lineHeight * 0.9
 
         return HStack(spacing: 12) {
@@ -90,11 +89,11 @@ struct DualRulerView: View {
             Rectangle()
                 .fill(Color.white.opacity(0.35))
                 .frame(width: 1, height: separatorHeight)
-                .cornerRadius(0.5)
+                .clipShape(.rect(cornerRadius: 0.5))
             Text(inchText)
         }
-        .font(.custom("SFProDisplay-Bold", size: fontSize))
-        .foregroundColor(.white)
+        .font(.system(size: fontSize, weight: .bold))
+        .foregroundStyle(.white)
         .padding(.horizontal, 12)
         .padding(.vertical, 14)
         .background(
@@ -309,20 +308,16 @@ private struct RulerCalibrationView: View {
     }
 }
 
-private func defaultPPI() -> CGFloat {
+private func defaultPPI(nativeSize: CGSize) -> CGFloat {
     let idiom = UIDevice.current.userInterfaceIdiom
     if idiom == .pad { return 264 }
     let h = max(
-        UIScreen.main.nativeBounds.width,
-        UIScreen.main.nativeBounds.height
+        nativeSize.width,
+        nativeSize.height
     )
     if [2796, 2556, 2532, 2460, 2436, 2778, 2688].contains(Int(h)) {
         return 458
     }
     if [2208, 1920].contains(Int(h)) { return 401 }
     return 326
-}
-
-#Preview {
-    DualRulerView()
 }
