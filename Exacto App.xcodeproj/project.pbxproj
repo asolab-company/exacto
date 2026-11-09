@@ -252,7 +252,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Exacto-App-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Exacto Measure";
+				INFOPLIST_KEY_CFBundleDisplayName = "Measuring Tape";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "We need access to your camera so you can take measurements directly using your device.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Allow saving snapshots to your Photos.";
@@ -270,7 +270,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.exacto.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -301,7 +301,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Exacto-App-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Exacto Measure";
+				INFOPLIST_KEY_CFBundleDisplayName = "Measuring Tape";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "We need access to your camera so you can take measurements directly using your device.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Allow saving snapshots to your Photos.";
@@ -319,7 +319,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.exacto.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
